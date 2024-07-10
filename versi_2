@@ -1,0 +1,57 @@
+from http.client import HTTPException
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect
+from ms_util.models.model_data_type import ObjectId
+from controllers.controllerWebsocket import ConnectionManager
+import websockets
+from typing import List
+from queue import Queue
+import threading
+import websockets
+
+ApiRouter_Websocket = APIRouter(
+    prefix="/ws",
+    tags=["websocket"],
+    responses={404: {"description": "Not found"}}    
+)
+
+# sebenernya yang kurang dari kodingan-ku ini apa tho ?
+# sudah aku integrasiken sama auth yang terbaru
+# sudah menggunakan type strict
+
+ApiRouter_Websocket = APIRouter(
+    prefix="/ws",
+    tags=["websocket"],
+    responses={404: {"description": "Not found"}}    
+)
+
+clients: List[WebSocket] = []
+message_queue = Queue()
+
+async def send_to_clients():
+    while True:
+        message = message_queue.get()
+        for client in clients:
+            try:
+                await client.send_text(message)
+            except Exception as e:
+                print(f"Failed to send message to client: {e}")
+                clients.remove(client)
+
+threading.Thread(target=send_to_clients, daemon=True).start()
+
+@ApiRouter_Websocket.post("/send")
+async def send_to_websocket(monitorId: ObjectId, message: str):
+    message_queue.put(message)
+
+@ApiRouter_Websocket.websocket("/{monitorId}")
+async def websocket_endpoint(websocket: WebSocket, monitorId: ObjectId):
+    global clients
+    await websocket.accept()
+    clients.append(websocket)
+    try:
+        while True:
+            data = await websocket.receive_text()
+            print("clients", clients) 
+            # Process received data if needed
+    except WebSocketDisconnect:
+        clients.remove(websocket)
